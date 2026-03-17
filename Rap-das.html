@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sabri Emir - Hologram Guitar</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Orbitron', sans-serif; }
+        #output_canvas { position: absolute; width: 100%; height: 100%; transform: scaleX(-1); }
+        #ui { position: absolute; top: 20px; left: 20px; color: #00f5ff; z-index: 100; text-shadow: 0 0 10px #00f5ff; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h1>SABRI EMIR - HOLOGRAM MODE</h1>
+        <div id="status">GİTAR TUTUŞU YAP VE ÇALMAYA BAŞLA!</div>
+    </div>
+
+    <canvas id="output_canvas"></canvas>
+
+<script>
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    let lastX = 0;
+
+    function onResults(results) {
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        
+        // 1. Kamera görüntüsünü çiz (ayna efektiyle)
+        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+        // 2. Vücut ve El takibi varsa Hologramı çiz
+        if (results.poseLandmarks) {
+            const leftShoulder = results.poseLandmarks[11];
+            const rightShoulder = results.poseLandmarks[12];
+            const rightHip = results.poseLandmarks[24];
+
+            // --- HOLOGRAM GİTAR ÇİZİMİ ---
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(leftShoulder.x * canvasElement.width, leftShoulder.y * canvasElement.height);
+            canvasCtx.lineTo(rightHip.x * canvasElement.width, rightHip.y * canvasElement.height);
+            canvasCtx.lineWidth = 40;
+            canvasCtx.strokeStyle = "rgba(0, 245, 255, 0.5)"; // Neon Mavi Hologram
+            canvasCtx.stroke();
+
+            // Gitar Telleri (Parlayan çizgiler)
+            for(let i=0; i<6; i++) {
+                canvasCtx.beginPath();
+                canvasCtx.moveTo((leftShoulder.x * canvasElement.width) + (i*5), leftShoulder.y * canvasElement.height);
+                canvasCtx.lineTo((rightHip.x * canvasElement.width) + (i*5), rightHip.y * canvasElement.height);
+                canvasCtx.strokeStyle = "#fff";
+                canvasCtx.lineWidth = 1;
+                canvasCtx.stroke();
+            }
+        }
+
+        // 3. Sağ El (Vuruş Elini) Takip Et
+        if (results.rightHandLandmarks) {
+            const handX = results.rightHandLandmarks[8].x * canvasElement.width;
+            // Eğer el teller üzerinde hızlı hareket ederse (Strumming)
+            if (Math.abs(handX - lastX) > 50) {
+                canvasCtx.fillStyle = "white";
+                canvasCtx.fillText("BASS BOOST!", 50, 150);
+                // Burada müzik sesini tetikleyebiliriz!
+            }
+            lastX = handX;
+        }
+        canvasCtx.restore();
+    }
+
+    const holistic = new Holistic({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`});
+    holistic.onResults(onResults);
+
+    const camera = new Camera(document.createElement('video'), {
+        onFrame: async () => { await holistic.send({image: document.createElement('video')}); },
+        width: 1280, height: 720
+    });
+    
+    // Kamerayı başlat
+    const startCam = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({video: true});
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        const camera = new Camera(video, {
+            onFrame: async () => { await holistic.send({image: video}); },
+            width: 1280, height: 720
+        });
+        camera.start();
+    };
+    window.onload = startCam;
+</script>
+</body>
+</html>
